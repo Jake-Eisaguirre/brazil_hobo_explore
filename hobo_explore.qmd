@@ -24,5 +24,8 @@ filenames <- gsub("\\.xlsx$","", list.files(here("raw_data")))
 for(i in filenames){
   assign(i, read_xlsx(here("raw_data", paste(i, ".xlsx", sep="")), skip = 1, progress = readxl_progress()))
 }
+
+
+as.Date(`D_Logger_Total _S1`$Date_DLogger, origin = "1899-12-30")
 ```
 
