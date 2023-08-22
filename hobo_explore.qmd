@@ -4,23 +4,25 @@ format: html
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Load Packages
 
 ```{r}
-1 + 1
+
+if(!require(librarian)){
+  install.packages(librarian)
+  library(librarian)
+}
+
+shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate)
+
 ```
 
-You can add options to executable code like this
-
+# slow method for reading csv files
 ```{r}
-#| echo: false
-2 * 2
+filenames <- gsub("\\.xlsx$","", list.files(here("raw_data")))
+
+for(i in filenames){
+  assign(i, read_xlsx(here("raw_data", paste(i, ".xlsx", sep="")), skip = 1, progress = readxl_progress()))
+}
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
