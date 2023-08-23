@@ -13,19 +13,84 @@ if(!require(librarian)){
   library(librarian)
 }
 
-shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate)
+shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate, lubridate)
 
 ```
 
 # slow method for reading csv files
-```{r}
-filenames <- gsub("\\.xlsx$","", list.files(here("raw_data")))
 
-for(i in filenames){
-  assign(i, read_xlsx(here("raw_data", paste(i, ".xlsx", sep="")), skip = 1, progress = readxl_progress()))
+```{r}
+#| message: false
+#| warning: false
+
+filenames <- gsub("\\.csv$","", list.files(here("raw_data")))
+
+for(i in 1:n_distinct(filenames)){
+  
+  # current csv
+  csv <- read_csv(here("raw_data", paste(filenames[i], ".csv", sep="")), skip = 1) %>% 
+    remove_empty(which = c("cols", "rows")) %>% 
+    clean_names() %>% 
+    mutate(date_d_logger = parse_date(date_d_logger),
+           month = month(date_d_logger),
+           year = year(date_d_logger)) %>% 
+    unite(year_month, c("year", "month"), sep = "-")
+    
+  
+  assign(x = paste(filenames[i]), value = csv) 
+  
+  print((paste("Done with", filenames[i])))
+
+  }
+
+```
+
+# Loop through and visualize temp data
+```{r}
+
+temp_plots <- list()
+
+for (i in 1:n_distinct(filenames)) {
+  
+  data <- get(filenames[i])
+  
+  p<- ggplot(data = data) +
+        geom_point(aes(x=date_d_logger, y=temp_f_dlogger)) +
+        theme(axis.text.x = element_text(angle = 90)) +
+        #geom_vline(xintercept = ) +
+        ggtitle(paste(filenames[i]))
+  
+  temp_plots[[i]] <- p
+  
+  print(paste("done with", filenames[i]))
+  
 }
 
 
-as.Date(`D_Logger_Total _S1`$Date_DLogger, origin = "1899-12-30")
+temp_plots[1:length(temp_plots)]
 ```
+# Loop through and visualize light intensity data
+```{r}
 
+temp_plots <- list()
+
+for (i in 1:n_distinct(filenames)) {
+  
+  data <- get(filenames[i])
+  
+  p<- ggplot(data = data) +
+        geom_point(aes(x=date_d_logger, y=intensidade_lum_ft2_dlogger)) +
+        theme(axis.text.x = element_text(angle = 90)) +
+        #geom_vline(xintercept = ) +
+        ggtitle(paste(filenames[i]))
+  
+  temp_plots[[i]] <- p
+  
+  print(paste("done with", filenames[i]))
+  
+}
+
+
+temp_plots[1:length(temp_plots)]
+
+```
