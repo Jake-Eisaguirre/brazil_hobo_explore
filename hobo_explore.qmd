@@ -31,11 +31,16 @@ for(i in 1:n_distinct(filenames)){
   csv <- read_csv(here("raw_data", paste(filenames[i], ".csv", sep="")), skip = 1) %>% 
     remove_empty(which = c("cols", "rows")) %>% 
     clean_names() %>% 
-    mutate(date_d_logger = parse_date(date_d_logger),
-           month = month(date_d_logger),
-           year = year(date_d_logger)) %>% 
-    unite(year_month, c("year", "month"), sep = "-")
-    
+    mutate(date_d_logger = parse_date(date_d_logger))
+    rename(transect = transect_d_logger) %>% 
+    rename(habitat = local_dlogger) %>% 
+    rename(date = date_d_logger) %>% 
+    rename(time = capturetime_dlogger) %>% 
+    rename(temp_c = temp_f_dlogger) %>% 
+    rename(light_intensity_lum_ft2 = intensidade_lum_ft2_dlogger) %>% 
+    mutate(temp_c = ((temp_c - 32) * (5/9))) %>% 
+    group_by(date) %>% 
+    mutate(mean_daily_temp_c = mean(temp_c))
   
   assign(x = paste(filenames[i]), value = csv) 
   
@@ -55,7 +60,7 @@ for (i in 1:n_distinct(filenames)) {
   data <- get(filenames[i])
   
   p<- ggplot(data = data) +
-        geom_point(aes(x=date_d_logger, y=temp_f_dlogger)) +
+        geom_line(aes(x=date, y=mean_daily_temp_c)) +
         theme(axis.text.x = element_text(angle = 90)) +
         #geom_vline(xintercept = ) +
         ggtitle(paste(filenames[i]))
@@ -79,7 +84,7 @@ for (i in 1:n_distinct(filenames)) {
   data <- get(filenames[i])
   
   p<- ggplot(data = data) +
-        geom_point(aes(x=date_d_logger, y=intensidade_lum_ft2_dlogger)) +
+        geom_line(aes(x=date, y=light_intensity_lum_ft2)) +
         theme(axis.text.x = element_text(angle = 90)) +
         #geom_vline(xintercept = ) +
         ggtitle(paste(filenames[i]))
