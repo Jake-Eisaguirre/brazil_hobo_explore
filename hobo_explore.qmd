@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-## Load Packages
+# Load Packages
 
 ```{r}
 
@@ -25,6 +25,7 @@ shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate, lubridate, zo
 
 filenames <- gsub("\\.csv$","", list.files(here("raw_data")))
 
+
 for(i in 1:n_distinct(filenames)){
   
   # current csv
@@ -43,7 +44,11 @@ for(i in 1:n_distinct(filenames)){
     mutate(mean_daily_temp_c = mean(temp_c)) %>% 
     ungroup() %>% 
     mutate(twoweek_temp_roll_avg = rollmean(mean_daily_temp_c, 14, fill = list(NA, NULL, NA), align = "right"))
-           
+  
+  
+  filenames[i] <- str_replace_all(filenames[i], "Total_", "")
+  
+  write_csv(csv, here("clean_tables", paste(filenames[i], ".csv", sep = "")))         
   
   assign(x = paste(filenames[i]), value = csv) 
   
@@ -105,3 +110,5 @@ for (i in 1:n_distinct(filenames)) {
 temp_plots[1:length(temp_plots)]
 
 ```
+
+
