@@ -13,7 +13,7 @@ if(!require(librarian)){
   library(librarian)
 }
 
-shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate, lubridate)
+shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate, lubridate, zoo)
 
 ```
 
@@ -31,7 +31,7 @@ for(i in 1:n_distinct(filenames)){
   csv <- read_csv(here("raw_data", paste(filenames[i], ".csv", sep="")), skip = 1) %>% 
     remove_empty(which = c("cols", "rows")) %>% 
     clean_names() %>% 
-    mutate(date_d_logger = parse_date(date_d_logger))
+    mutate(date_d_logger = parse_date(date_d_logger)) %>% 
     rename(transect = transect_d_logger) %>% 
     rename(habitat = local_dlogger) %>% 
     rename(date = date_d_logger) %>% 
@@ -40,7 +40,10 @@ for(i in 1:n_distinct(filenames)){
     rename(light_intensity_lum_ft2 = intensidade_lum_ft2_dlogger) %>% 
     mutate(temp_c = ((temp_c - 32) * (5/9))) %>% 
     group_by(date) %>% 
-    mutate(mean_daily_temp_c = mean(temp_c))
+    mutate(mean_daily_temp_c = mean(temp_c)) %>% 
+    ungroup() %>% 
+    mutate(twoweek_temp_roll_avg = rollmean(mean_daily_temp_c, 14, fill = list(NA, NULL, NA), align = "right"))
+           
   
   assign(x = paste(filenames[i]), value = csv) 
   
@@ -51,6 +54,7 @@ for(i in 1:n_distinct(filenames)){
 ```
 
 # Loop through and visualize temp data
+
 ```{r}
 
 temp_plots <- list()
@@ -60,7 +64,7 @@ for (i in 1:n_distinct(filenames)) {
   data <- get(filenames[i])
   
   p<- ggplot(data = data) +
-        geom_line(aes(x=date, y=mean_daily_temp_c)) +
+        geom_line(aes(x=date, y=twoweek_temp_roll_avg)) +
         theme(axis.text.x = element_text(angle = 90)) +
         #geom_vline(xintercept = ) +
         ggtitle(paste(filenames[i]))
@@ -74,7 +78,9 @@ for (i in 1:n_distinct(filenames)) {
 
 temp_plots[1:length(temp_plots)]
 ```
+
 # Loop through and visualize light intensity data
+
 ```{r}
 
 temp_plots <- list()
