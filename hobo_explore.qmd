@@ -39,12 +39,8 @@ for(i in 1:n_distinct(filenames)){
     rename(time = capturetime_dlogger) %>% 
     rename(temp_c = temp_f_dlogger) %>% 
     rename(light_intensity_lum_ft2 = intensidade_lum_ft2_dlogger) %>% 
-    mutate(temp_c = ((temp_c - 32) * (5/9))) %>% 
-    group_by(habitat) %>% 
-    mutate(max_temp_c = max(temp_c),
-           min_temp_c= min(temp_c),
-           temp_c_range = max_temp_c - min_temp_c) %>% 
-    ungroup() %>% 
+    mutate(temp_c = ((temp_c - 32) * (5/9)),
+           temp_c = if_else(temp_c < 0, NA, temp_c)) %>% 
     group_by(date, habitat) %>% 
     reframe(mean_daily_temp_c = mean(temp_c),
            max_daily_temp_c = max(temp_c),
@@ -56,7 +52,10 @@ for(i in 1:n_distinct(filenames)){
            habitat = str_replace(habitat, " ", "_")) %>% 
     ungroup() %>% 
     group_by(habitat) %>% 
-    mutate(two_week_temp_rollavg = rollmean(mean_daily_temp_c, 14, fill = list(NA, NULL, NA), align = "right"))
+    mutate(max_temp_c = max(mean_daily_temp_c),
+           min_temp_c= min(mean_daily_temp_c),
+           temp_c_range = max_temp_c - min_temp_c,
+           two_week_temp_rollavg = rollmean(mean_daily_temp_c, 14, fill = list(NA, NULL, NA), align = "right"))
 
   
   
@@ -124,7 +123,11 @@ complete_data <- all_data %>%
                             between(date, as.Date("2021-09-21"), as.Date("2021-12-20")) ~ "spring",
                             between(date, as.Date("2021-12-21"), as.Date("2021-12-31")) ~ "summer",
                             between(date, as.Date("2022-01-01"), as.Date("2022-03-20")) ~ "summer",
-                            between(date, as.Date("2022-03-21"), as.Date("2022-06-20")) ~ "fall"))
+                            between(date, as.Date("2022-03-21"), as.Date("2022-06-20")) ~ "fall")) %>% 
+  relocate(season, .after = date) %>% 
+  relocate(site, .before = date)
+
+write_csv(complete_data, here("complete_data", "full_year_season_all_sites.csv"))
 
 ```
 
