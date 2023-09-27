@@ -1,7 +1,7 @@
 ---
 title: "hobo explore"
 format: html
-editor: visual
+editor: source
 ---
 
 # Load Packages
@@ -13,7 +13,7 @@ if(!require(librarian)){
   library(librarian)
 }
 
-shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate, lubridate, zoo)
+shelf(tidyverse, here, DBI, RPostgres, janitor, readxl, parsedate, lubridate, zoo, ivs, DescTools, anytime)
 
 ```
 
@@ -40,10 +40,24 @@ for(i in 1:n_distinct(filenames)){
     rename(temp_c = temp_f_dlogger) %>% 
     rename(light_intensity_lum_ft2 = intensidade_lum_ft2_dlogger) %>% 
     mutate(temp_c = ((temp_c - 32) * (5/9))) %>% 
-    group_by(date) %>% 
-    mutate(mean_daily_temp_c = mean(temp_c)) %>% 
+    group_by(habitat) %>% 
+    mutate(max_temp_c = max(temp_c),
+           min_temp_c= min(temp_c),
+           temp_c_range = max_temp_c - min_temp_c) %>% 
     ungroup() %>% 
-    mutate(twoweek_temp_roll_avg = rollmean(mean_daily_temp_c, 14, fill = list(NA, NULL, NA), align = "right"))
+    group_by(date, habitat) %>% 
+    reframe(mean_daily_temp_c = mean(temp_c),
+           max_daily_temp_c = max(temp_c),
+           min_daily_temp_c = min(temp_c),
+           daily_temp_c_range = max_daily_temp_c - min_daily_temp_c) %>% 
+    mutate(transect = paste(filenames[i]),
+           transect = str_remove(transect, "D_Logger_Total_"),
+           habitat = str_replace(habitat, "á", "a"),
+           habitat = str_replace(habitat, " ", "_")) %>% 
+    ungroup() %>% 
+    group_by(habitat) %>% 
+    mutate(two_week_temp_rollavg = rollmean(mean_daily_temp_c, 14, fill = list(NA, NULL, NA), align = "right"))
+
   
   
   filenames[i] <- str_replace_all(filenames[i], "Total_", "")
@@ -58,55 +72,173 @@ for(i in 1:n_distinct(filenames)){
 
 ```
 
+
+# bind all dates into seperate columns
+```{r}
+
+
+v1 <- D_Logger_S1$date 
+v2 <- D_Logger_S2$date
+v3 <- D_Logger_S3$date
+v4 <- D_Logger_S4$date
+v5 <- D_Logger_S5$date
+v6 <- D_Logger_S6$date
+v7 <- D_Logger_S7$date
+v8 <- D_Logger_S8$date
+v9 <- D_Logger_S9$date
+v10 <- D_Logger_S10$date
+
+dates <- list(v1 = v1, v2 = v2, v3 = v3, v4 = v4, v5 = v5, v6 = v6, v7 = v7, v8 = v8, v9 = v9, v10 = v10)
+
+attributes(dates) = list(names = names(dates),
+                         row.names = 1:max(length(v9)), class = 'data.frame')
+
+df <- setNames(data.frame(table(unlist(lapply(dates, unique)))), c("date", "count"))
+
+filt_date <- df %>% 
+  filter(count == 10) %>% 
+  select(date) %>% 
+  mutate(date = as.character(date),
+         date = parse_date(date)) %>% 
+  filter(!date < "2021-12-20",
+         !date > "2022-12-20")
+```
+
+# Bind all tables together
+```{r}
+
+all_data <- plyr::rbind.fill(D_Logger_S1, D_Logger_S2, D_Logger_S3, D_Logger_S4, D_Logger_S5, D_Logger_S6, 
+                             D_Logger_S7, D_Logger_S8, D_Logger_S9, D_Logger_S10)
+
+```
+
+# Filter all_data by continous date range
+```{r}
+
+complete_data <- all_data %>% 
+  filter(date %in% filt_date$date) %>% 
+  unite(site, c("transect", "habitat"), sep = "_") %>% 
+  mutate(season = case_when(between(date, as.Date("2022-06-20"), as.Date("2022-09-21")) ~ "winter",
+                            between(date, as.Date("2022-09-21"), as.Date("2022-12-20")) ~ "spring",
+                            between(date, as.Date("2022-12-21"), as.Date("2022-12-31")) ~ "summer",
+                            between(date, as.Date("2021-09-21"), as.Date("2021-12-20")) ~ "spring",
+                            between(date, as.Date("2021-12-21"), as.Date("2021-12-31")) ~ "summer",
+                            between(date, as.Date("2022-01-01"), as.Date("2022-03-20")) ~ "summer",
+                            between(date, as.Date("2022-03-21"), as.Date("2022-06-20")) ~ "fall"))
+
+```
+
+
 # Loop through and visualize temp data
 
 ```{r}
 
 temp_plots <- list()
 
-for (i in 1:n_distinct(filenames)) {
+site_list <- unique(complete_data$site)
+
+for (i in 1:length(site_list)) {
   
-  data <- get(filenames[i])
+  data <- complete_data %>% 
+    filter(site == site_list[i])
   
   p<- ggplot(data = data) +
-        geom_line(aes(x=date, y=twoweek_temp_roll_avg)) +
+        geom_line(aes(x=date, y=two_week_temp_rollavg, color=season)) +
         theme(axis.text.x = element_text(angle = 90)) +
-        #geom_vline(xintercept = ) +
-        ggtitle(paste(filenames[i]))
+        theme_classic() +
+        ggtitle(paste(site_list[i]))
   
   temp_plots[[i]] <- p
   
-  print(paste("done with", filenames[i]))
+  print(paste("done with", site_list[i]))
   
+   ggsave(here("rolling_average", paste(site_list[i], ".jpeg", sep="")),
+        plot = temp_plots[[i]])
+
 }
 
 
 temp_plots[1:length(temp_plots)]
+
+
 ```
 
 # Loop through and visualize light intensity data
 
 ```{r}
 
-temp_plots <- list()
+# temp_plots <- list()
+# 
+# for (i in 1:n_distinct(filenames)) {
+#   
+#   data <- get(filenames[i])
+#   
+#   p<- ggplot(data = data) +
+#         geom_line(aes(x=date, y=light_intensity_lum_ft2)) +
+#         theme(axis.text.x = element_text(angle = 90)) +
+#         #geom_vline(xintercept = ) +
+#         ggtitle(paste(filenames[i]))
+#   
+#   temp_plots[[i]] <- p
+#   
+#   print(paste("done with", filenames[i]))
+#   
+# }
+# 
+# 
+# temp_plots[1:length(temp_plots)]
 
-for (i in 1:n_distinct(filenames)) {
-  
-  data <- get(filenames[i])
-  
-  p<- ggplot(data = data) +
-        geom_line(aes(x=date, y=light_intensity_lum_ft2)) +
-        theme(axis.text.x = element_text(angle = 90)) +
-        #geom_vline(xintercept = ) +
-        ggtitle(paste(filenames[i]))
-  
-  temp_plots[[i]] <- p
-  
-  print(paste("done with", filenames[i]))
-  
-}
+v1t <- D_Logger_S1$date[D_Logger_S1$habitat == "terra"]
+v1a <- D_Logger_S1$date[D_Logger_S1$habitat == "agua"]
+v2t <- D_Logger_S2$date[D_Logger_S2$habitat == "terra"]
+v2a <- D_Logger_S2$date[D_Logger_S2$habitat == "agua"]
+v3t <- D_Logger_S3$date[D_Logger_S3$habitat == "terra"]
+v3a <- D_Logger_S3$date[D_Logger_S3$habitat == "agua"]
+v4t <- D_Logger_S4$date[D_Logger_S4$habitat == "terra"]
+v4a <- D_Logger_S4$date[D_Logger_S4$habitat == "agua"]
+v5t <- D_Logger_S5$date[D_Logger_S5$habitat == "terra"]
+v5a <- D_Logger_S5$date[D_Logger_S5$habitat == "agua"]
+v6t <- D_Logger_S6$date[D_Logger_S6$habitat == "terra"]
+v6a <- D_Logger_S6$date[D_Logger_S6$habitat == "agua"]
+v7t <- D_Logger_S7$date[D_Logger_S7$habitat == "terra"]
+v7a <- D_Logger_S7$date[D_Logger_S7$habitat == "agua"]
+v8t <- D_Logger_S8$date[D_Logger_S8$habitat == "terra"]
+v8a <- D_Logger_S8$date[D_Logger_S8$habitat == "agua"]
+v9t <- D_Logger_S9$date[D_Logger_S9$habitat == "terra"]
+v9a <- D_Logger_S9$date[D_Logger_S9$habitat == "agua"]
+v10t <- D_Logger_S10$date[D_Logger_S10$habitat == "terra"]
+v10a <- D_Logger_S10$date[D_Logger_S10$habitat == "agua"]
+
+dates <- list(v1t = v1t,
+              v1a = v1a,
+              v2t = v2t,
+              v2a = v2a,
+              v3t = v3t,
+              v3a = v3a,
+              v4t = v4t,
+              v4a = v4a,
+              v5t = v5t,
+              v5a = v5a,
+              v6t = v6t,
+              v6a = v6a,
+              v7t = v7t,
+              v7a = v7a,
+              v8t = v8t,
+              v8a = v8a,
+              v9t = v9t,
+              v9a = v9a,
+              v10t = v10t,
+              v10a = v10a)
 
 
-temp_plots[1:length(temp_plots)]
+attributes(dates) = list(names = names(dates),
+                         row.names = 1:max(length(v2t)), class = 'data.frame')
 
+df <- setNames(data.frame(table(unlist(lapply(dates, unique)))), c("date", "count"))
+
+filt_date <- df %>% 
+  filter(count == 20) %>% 
+  select(date) %>% 
+  mutate(date = as.character(date),
+         date = parse_date(date))
 ```
